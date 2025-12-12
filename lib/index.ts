@@ -9,10 +9,6 @@ import mongoose from 'mongoose';
 import path from 'path';
 import routes from './routes';
 import { logDev } from './util';
-import { SicoobIntegration } from './integrations/sicoob';
-import cronjobsController from './controllers/cronjobs.controller';
-import { messaging } from './integrations/firebase';
-import { UsuariosModel } from './models/usuarios.model';
 
 dayjs.locale('pt-br');
 

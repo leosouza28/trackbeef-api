@@ -3,7 +3,7 @@ import { NextFunction, Request, Response } from "express";
 import fileUpload from "express-fileupload";
 import { storage } from "../integrations/firebase";
 import { MunicipiosModel } from "../models/municipios.model";
-import { USUARIO_NIVEL, UsuariosModel } from "../models/usuarios.model";
+import { UsuariosModel } from "../models/usuarios.model";
 import { errorHandler, logDev } from "../util";
 
 export default {
@@ -127,19 +127,9 @@ export default {
                 }
             );
 
-
-            let niveis_acesso = Object.keys(USUARIO_NIVEL).map((key: string) => {
-                return {
-                    // @ts-ignore
-                    label: USUARIO_NIVEL[key],
-                    value: key
-                }
-            })
-
             res.json({
                 sexos,
-                parentescos,
-                niveis_acesso
+                parentescos
             })
         } catch (error) {
             errorHandler(error, res);

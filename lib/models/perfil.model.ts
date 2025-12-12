@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 
 const ModelSchema = new mongoose.Schema({
-    name: String,
-    contador: Number,
+    nome: String,
+    scopes: [String],
     empresa: {
         _id: String,
         nome: String
@@ -14,4 +14,4 @@ const ModelSchema = new mongoose.Schema({
     }
 });
 
-export const CountersModel = mongoose.model("counters", ModelSchema);
+export const PerfilModel = mongoose.model("perfis", ModelSchema);

@@ -1,12 +1,7 @@
 import mongoose from "mongoose";
 
 const ModelSchema = new mongoose.Schema({
-    name: String,
-    contador: Number,
-    empresa: {
-        _id: String,
-        nome: String
-    }
+
 }, {
     timestamps: {
         createdAt: 'createdAt',
@@ -14,4 +9,4 @@ const ModelSchema = new mongoose.Schema({
     }
 });
 
-export const CountersModel = mongoose.model("counters", ModelSchema);
+export const VendasModel = mongoose.model("vendas", ModelSchema);

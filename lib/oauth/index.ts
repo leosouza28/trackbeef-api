@@ -2,10 +2,11 @@ import jwt from 'jwt-simple';
 import dayjs from 'dayjs';
 import { errorHandler } from '../util/index';
 import { NextFunction, Request, Response } from 'express';
-import { USUARIO_MODEL_STATUS, UsuariosModel } from '../models/usuarios.model';
+import { UsuariosModel } from '../models/usuarios.model';
 import { IncomingHttpHeaders } from 'http';
 import { getAllAvailableScopes } from './permissions';
-
+import { PESSOA_MODEL_STATUS } from '../models/pessoas.model';
+import { PerfilModel } from '../models/perfil.model';
 
 const NAO_AUTORIZADO = new Error("Não autorizado");
 const UNAUTH_SCOPE = new Error("Escopo não autorizado");
@@ -18,18 +19,32 @@ async function gerarSessao(id_usuario: any) {
             _id: String(usuario._id),
             nome: usuario.nome,
             documento: usuario.documento,
-            niveis: usuario.niveis,
             iat: dayjs().unix(),
-            exp: dayjs().add(50, 'year').unix()
+            exp: dayjs().add(1, 'year').unix()
         }
         let token = jwt.encode(payload, process.env.JWT_SECRET!)
         payload.access_token = `Bearer ${token}`;
         // @ts-ignore
         payload._id = String(payload._id);
-        payload.scopes = usuario.scopes;
-        if (usuario?.scopes.includes('*')) {
-            let allScopes = getAllAvailableScopes();
-            payload.scopes = allScopes.map((scope) => scope.key);
+
+        let perfis_ids = usuario.empresas?.map((item) => item.perfil?._id) || [];
+        let perfis = await PerfilModel.find({ _id: { $in: perfis_ids } }).lean();
+
+        for (let empresa of usuario.empresas || []) {
+            let perfil = perfis.find((p) => String(p._id) === String(empresa.perfil?._id));
+            if (perfil) {
+                if (perfil?.scopes.includes('*')) {
+                    let allScopes = getAllAvailableScopes();
+                    empresa.perfil = {
+                        ...perfil,
+                        // @ts-ignore,
+                        scopes: allScopes.map((scope) => scope.key)
+                    }
+                } else {
+                    // @ts-ignore,
+                    empresa.perfil = perfil;
+                }
+            }
         }
         return payload;
     } catch (error) {
@@ -63,9 +78,8 @@ async function autenticar(req: any, res: Response, next: NextFunction) {
             let decoded = jwt.decode(value, process.env.JWT_SECRET!);
             if (!decoded) throw NAO_AUTORIZADO
             req.usuario = await UsuariosModel.findOne({ _id: decoded._id }, { senha: 0, createdAt: 0, updatedAt: 0 }).lean();
-            if (req.usuario?.status == USUARIO_MODEL_STATUS.BLOQUEADO) throw NAO_AUTORIZADO;
+            if (req.usuario?.status == PESSOA_MODEL_STATUS.BLOQUEADO) throw NAO_AUTORIZADO;
             req.logado = true;
-
             try {
                 await UsuariosModel.updateOne({ _id: req.usuario._id }, {
                     $set: {

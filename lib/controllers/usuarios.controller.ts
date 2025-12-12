@@ -1,10 +1,11 @@
 import bcrypt from 'bcrypt';
 import dayjs from "dayjs";
 import { NextFunction, Request, Response } from "express";
-import { USUARIO_MODEL_STATUS, USUARIO_MODEL_TIPO_TELEFONE, USUARIO_NIVEL, UsuariosModel } from "../models/usuarios.model";
-import { gerarSessao, NAO_AUTORIZADO, UNAUTH_SCOPE } from "../oauth";
-import { getAllAvailableScopes, isScopeAuthorized } from '../oauth/permissions';
-import { errorHandler, isValidCPF, isValidTelefone, logDev } from "../util";
+import { PESSOA_MODEL_STATUS, PESSOA_MODEL_TIPO_TELEFONE } from '../models/pessoas.model';
+import { UsuariosModel } from "../models/usuarios.model";
+import { gerarSessao, NAO_AUTORIZADO } from "../oauth";
+import { getAllAvailableScopes } from '../oauth/permissions';
+import { errorHandler, isValidCPF, isValidTelefone } from "../util";
 
 
 const USER_ERRORS = {
@@ -49,9 +50,8 @@ export default {
                 ]
             }).lean();
             if (!usuario) throw new Error(USER_ERRORS.USER_NOT_FOUND);
-            if (!usuario.niveis.includes(scope)) throw new Error("Usuário não autorizado para este escopo.");
             if (!usuario?.senha) throw new Error(USER_ERRORS.USER_WITHOUT_PASSWORD);
-            if (usuario.status != USUARIO_MODEL_STATUS.ATIVO) throw new Error(USER_ERRORS.USER_BLOCKED);
+            if (usuario.status != PESSOA_MODEL_STATUS.ATIVO) throw new Error(USER_ERRORS.USER_BLOCKED);
             // @ts-ignore
             if (process.env.DEV !== '1') if (!bcrypt.compareSync(senha, usuario.senha)) throw new Error(USER_ERRORS.INCORRECT_PASSWORD);
 
@@ -70,7 +70,8 @@ export default {
             let usuario = null;
             if (!!busca_por) {
                 if (busca_por == 'cliente' && !!documento) {
-                    usuario = await UsuariosModel.findOne({ documento: documento, niveis: USUARIO_NIVEL.CLIENTE }).lean();
+                    throw new Error("STOP!");
+                    // usuario = await UsuariosModel.findOne({ documento: documento, niveis: USUARIO_NIVEL.CLIENTE }).lean();
                 } else {
                     throw new Error("Consulta não identificada");
                 }
@@ -95,29 +96,26 @@ export default {
     },
     getVendedores: async (req: Request, res: Response, next: NextFunction) => {
         try {
-            let vendedores = await UsuariosModel.find({
-                niveis: USUARIO_NIVEL.VENDEDOR,
-                status: USUARIO_MODEL_STATUS.ATIVO
-            }).sort({ nome: 1 }).lean();
+            // let vendedores = await UsuariosModel.find({}).sort({ nome: 1 }).lean();
 
-            if (!req.usuario?.scopes?.includes('*')) {
-                if (req.usuario?.niveis?.includes(USUARIO_NIVEL.VENDEDOR) && !req.usuario?.niveis?.includes(USUARIO_NIVEL.SUPERVISOR_VENDAS)) {
-                    // @ts-ignore
-                    vendedores = vendedores.filter(v => v._id.toString() == req.usuario._id.toString());
-                }
-            }
-            res.json({ lista: vendedores, total: vendedores.length });
+            // if (!req.usuario?.scopes?.includes('*')) {
+            //     if (req.usuario?.niveis?.includes(USUARIO_NIVEL.VENDEDOR) && !req.usuario?.niveis?.includes(USUARIO_NIVEL.SUPERVISOR_VENDAS)) {
+            //         // @ts-ignore
+            //         vendedores = vendedores.filter(v => v._id.toString() == req.usuario._id.toString());
+            //     }
+            // }
+            res.json({ lista: [], total: 0 });
         } catch (error) {
             errorHandler(error, res);
         }
     },
     getUsuarios: async (req: Request, res: Response, next: NextFunction) => {
         try {
-            let { perpage, page, status, nivel_acesso, ...query } = req.query
+            let { perpage, page, status, ...query } = req.query
             // @ts-ignore
-            if (!isScopeAuthorized('usuarios.leitura', req.usuario?.scopes)) {
-                throw UNAUTH_SCOPE
-            }
+            // if (!isScopeAuthorized('usuarios.leitura', req.usuario?.scopes)) {
+            //     throw UNAUTH_SCOPE
+            // }
             let busca = req.query?.q || "";
             let lista: any = [], total = 0,
                 porpagina = 10, pagina = 0, skip = 0, limit = 0;
@@ -140,7 +138,6 @@ export default {
             }
 
             if (status != 'TODOS') find['status'] = status
-            if (nivel_acesso != 'TODOS') find['niveis'] = nivel_acesso
 
             total = await UsuariosModel.find(find).countDocuments();
             lista = await UsuariosModel.find(find)
@@ -158,14 +155,13 @@ export default {
         try {
             let doc, now = dayjs().toDate();
             let payload: any = {
-                niveis: [USUARIO_NIVEL.CLIENTE],
                 nome: req.body.nome,
                 documento: req.body.documento,
                 data_nascimento: null,
                 telefone_principal: null,
                 telefones: [],
                 origem_cadastro: "ADMINISTRADOR",
-                status: USUARIO_MODEL_STATUS.ATIVO,
+                status: PESSOA_MODEL_STATUS.ATIVO,
                 criado_por: {
                     data_hora: now,
                     // @ts-ignore
@@ -179,11 +175,11 @@ export default {
                 await isValidTelefone(req.body.telefone);
                 payload.telefones.push({
                     principal: true,
-                    tipo: USUARIO_MODEL_TIPO_TELEFONE.CELULAR,
+                    tipo: PESSOA_MODEL_TIPO_TELEFONE.CELULAR,
                     valor: req.body.telefone
                 })
                 payload.telefone_principal = {
-                    tipo: USUARIO_MODEL_TIPO_TELEFONE.CELULAR,
+                    tipo: PESSOA_MODEL_TIPO_TELEFONE.CELULAR,
                     valor: req.body.telefone
                 }
             }
@@ -204,12 +200,11 @@ export default {
             let doc, now = dayjs().toDate();
 
             // @ts-ignore
-            if (!isScopeAuthorized('usuarios.editar', req.usuario?.scopes)) {
-                throw UNAUTH_SCOPE
-            }
+            // if (!isScopeAuthorized('usuarios.editar', req.usuario?.scopes)) {
+            //     throw UNAUTH_SCOPE
+            // }
 
             let payload: any = {
-                niveis: [],
                 nome: req.body.nome,
                 username: req.body.username,
                 documento: req.body.documento,
@@ -219,10 +214,6 @@ export default {
                 telefones: [],
                 telefone_principal: null,
             }
-            if (req.body?.nivel_cliente) payload.niveis.push(USUARIO_NIVEL.CLIENTE);
-            if (req.body?.nivel_admin) payload.niveis.push(USUARIO_NIVEL.ADMIN);
-            if (req.body?.nivel_vendedor) payload.niveis.push(USUARIO_NIVEL.VENDEDOR);
-            if (req.body?.nivel_supervisor) payload.niveis.push(USUARIO_NIVEL.SUPERVISOR_VENDAS);
             if (!!req.body?.sexo) payload.sexo = req.body.sexo;
             if (req.body?.data_nascimento?.length == '10') payload.data_nascimento = dayjs(req.body.data_nascimento).toDate();
             if (!req.body?._id) payload.senha = bcrypt.hashSync(req.body.senha, 10);
@@ -250,14 +241,6 @@ export default {
 
             await validarUsuario(payload);
 
-            if (payload?.niveis?.includes(USUARIO_NIVEL.ADMIN)) {
-                logDev("Definindo scopes")
-                logDev(req.body.scopes);
-                payload.scopes = req.body.scopes;
-            } else {
-                logDev("Redefinindo scopes")
-                payload.scopes = []
-            }
 
             if (!!req.body?._id) {
                 payload.atualizado_por = {
