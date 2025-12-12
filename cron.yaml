@@ -1,0 +1,5 @@
+cron:
+  - description: "Atualizar PIX"
+    url: "/cron/sync-sicoob"
+    schedule: every 1 mins
+    target: "adelino-api"
