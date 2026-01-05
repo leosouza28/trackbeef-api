@@ -4,6 +4,7 @@ const ModelSchema = new mongoose.Schema({
     foto_url: String,
     username: String,
     documento: String,
+    email: String,
     doc_type: {
         type: String,
         default: 'CPF'
@@ -28,7 +29,8 @@ const ModelSchema = new mongoose.Schema({
             perfil: {
                 _id: String,
                 nome: String
-            }
+            },
+            ativo: Boolean
         }
     ],
     criado_por: {
@@ -61,4 +63,8 @@ export const UsuariosModel = mongoose.model("usuarios", ModelSchema);
 export const USUARIO_DOC_TYPE = {
     CPF: "CPF",
     PASSAPORTE: "PASSAPORTE"
+}
+export const USUARIO_STATUS = {
+    ATIVO: "ATIVO",
+    INATIVO: "INATIVO"
 }

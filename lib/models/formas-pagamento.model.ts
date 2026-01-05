@@ -2,7 +2,13 @@ import mongoose from "mongoose";
 
 const ModelSchema = new mongoose.Schema({
     nome: String,
-    scopes: [String],
+    avista: Boolean,
+    dias_intervalo: Number,
+
+    status: String,
+
+    disponivel_em: [String],
+
     empresa: {
         _id: String,
         nome: String
@@ -32,4 +38,15 @@ const ModelSchema = new mongoose.Schema({
     }
 });
 
-export const PerfilModel = mongoose.model("perfis", ModelSchema);
+export const FormasPagamentoModel = mongoose.model("formas-pagamentos", ModelSchema);
+
+export const FORMA_PAGAMENTO_STATUS = {
+    ATIVO: 'ATIVO',
+    INATIVO: 'INATIVO'
+}
+
+export const FORMA_PAGAMENTO_DISPONIVEL_EM = {
+    VENDAS_PDV: 'VENDAS PDV',
+    CONTAS_RECEBER: 'CONTAS A RECEBER',
+    CONTAS_PAGAR: 'CONTAS A PAGAR',
+}

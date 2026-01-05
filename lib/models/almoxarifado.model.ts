@@ -1,19 +1,20 @@
 import mongoose from "mongoose";
 
 const ModelSchema = new mongoose.Schema({
+
     nome: String,
-    scopes: [String],
-    empresa: {
-        _id: String,
-        nome: String
+
+    principal: {
+        type: Boolean,
+        default: false
     },
     criado_por: {
         data_hora: Date,
         usuario: {
             _id: String,
             nome: String,
+            username: String,
             documento: String,
-            username: String
         }
     },
     atualizado_por: {
@@ -21,15 +22,18 @@ const ModelSchema = new mongoose.Schema({
         usuario: {
             _id: String,
             nome: String,
+            username: String,
             documento: String,
-            username: String
         }
+    },
+    empresa: {
+        _id: String,
+        nome: String
     }
 }, {
     timestamps: {
-        createdAt: 'createdAt',
-        updatedAt: 'updatedAt'
+        createdAt: "createdAt",
+        updatedAt: "updatedAt"
     }
 });
-
-export const PerfilModel = mongoose.model("perfis", ModelSchema);
+export const AlmoxarifadoModel = mongoose.model("almoxarifados", ModelSchema);

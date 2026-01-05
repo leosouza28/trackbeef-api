@@ -20,5 +20,15 @@ router.post('/v1/admin/usuarios/simples', autenticar, usuariosController.addUsua
 
 // Permissões
 router.get("/v1/admin/usuarios/permissoes", autenticar, usuariosController.getPermissoes);
+// Perfis
+router.get('/v1/admin/perfis', autenticar, usuariosController.getPerfis);
+router.get('/v1/admin/perfis/:id', autenticar, usuariosController.getPerfisById);
+router.post('/v1/admin/perfis', autenticar, usuariosController.setPerfis);
+
+// Pessoas
+router.get('/v1/admin/pessoas', autenticar, usuariosController.getPessoas);
+router.get('/v1/admin/pessoas/:id', autenticar, usuariosController.getPessoasById);
+router.post('/v1/admin/pessoas', autenticar, usuariosController.addPessoa);
+
 
 export default router;

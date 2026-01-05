@@ -44,6 +44,7 @@ export interface IPessoa {
 }
 
 const ModelSchema = new mongoose.Schema({
+    tipos: [String],
     doc_type: {
         type: String,
         default: 'cpf'
@@ -52,10 +53,10 @@ const ModelSchema = new mongoose.Schema({
     nome: String,
     razao_social: String,
     email: String,
-    senha: String,
     data_nascimento: Date,
     sexo: String,
     status: String,
+    dias_cobranca: Number,
     telefone_principal: {
         tipo: String,
         valor: String
@@ -67,6 +68,10 @@ const ModelSchema = new mongoose.Schema({
             principal: Boolean
         }
     ],
+    empresa: {
+        _id: String,
+        nome: String,
+    },
     endereco: {
         cep: String,
         logradouro: String,
@@ -105,7 +110,7 @@ export const PessoasModel = mongoose.model("pessoas", ModelSchema);
 
 export const PESSOA_DOC_TYPE = {
     CPF: "CPF",
-    PASSAPORTE: "PASSAPORTE"
+    CNPJ: "CNPJ"
 }
 export const PESSOA_SEXO = {
     MASCULINO: "MASCULINO",
@@ -123,6 +128,10 @@ export const PESSOA_MODEL_TIPO_TELEFONE = {
     WHATSAPP: "WHATSAPP",
     CELULAR: "CELULAR",
     FIXO: "FIXO"
+}
+export const PESSOA_TIPO = {
+    CLIENTE: "CLIENTE",
+    FORNECEDOR: "FORNECEDOR",
 }
 export const PESSOA_DEFAULT_VALUES_INPUT = {
     _id: String,

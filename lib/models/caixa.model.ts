@@ -2,7 +2,11 @@ import mongoose from "mongoose";
 
 const ModelSchema = new mongoose.Schema({
     nome: String,
-    scopes: [String],
+    saldo: {
+        type: Number,
+        default: 0
+    },
+    principal: Boolean,
     empresa: {
         _id: String,
         nome: String
@@ -32,4 +36,4 @@ const ModelSchema = new mongoose.Schema({
     }
 });
 
-export const PerfilModel = mongoose.model("perfis", ModelSchema);
+export const CaixaModel = mongoose.model("caixas", ModelSchema);

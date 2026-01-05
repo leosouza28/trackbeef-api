@@ -2,6 +2,19 @@ import { Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 
+export function getCdnLink() {
+    let url = '';
+    // let is_dev = process.env.DEV === '1'
+    let is_dev = false
+
+    if (is_dev) {
+        url = 'http://localhost:8009';
+    } else {
+        url = 'https://api.trackbeef.lsdevelopers.dev';
+    }
+    return url;
+}
+
 function mascaraTelefone(value: string): string {
     const cleanedValue = value.replace(/\D/g, ''); // Remove non-numeric characters
     if (cleanedValue.length === 11) {
@@ -81,7 +94,7 @@ function logDev(...args: any) {
             if (typeof args[0] == 'object') {
                 console.log(JSON.stringify(args[0], null, 2))
                 return
-            }else{
+            } else {
                 console.log(args[0])
                 return
             }
@@ -146,6 +159,42 @@ function isValidCPF(strCPF = '') {
 
         if ((Resto == 10) || (Resto == 11)) Resto = 0;
         if (Resto != parseInt(strCPF.substring(10, 11))) throw new Error("CPF inválido!");
+
+        return true;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export function isValidCNPJ(strCNPJ = '') {
+    try {
+        strCNPJ = strCNPJ.replace(/[^\d]+/g, '');
+        if (strCNPJ.length != 14) throw new Error("CNPJ inválido!");
+
+        if (/^(\d)\1+$/.test(strCNPJ)) throw new Error("CNPJ inválido!");
+
+        let tamanho = strCNPJ.length - 2
+        let numeros = strCNPJ.substring(0, tamanho);
+        let digitos = strCNPJ.substring(tamanho);
+        let soma = 0;
+        let pos = tamanho - 7;
+        for (let i = tamanho; i >= 1; i--) {
+            soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+        if (resultado != parseInt(digitos.charAt(0))) throw new Error("CNPJ inválido!");
+
+        tamanho = tamanho + 1;
+        numeros = strCNPJ.substring(0, tamanho);
+        soma = 0;
+        pos = tamanho - 7;
+        for (let i = tamanho; i >= 1; i--) {
+            soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+        if (resultado != parseInt(digitos.charAt(1))) throw new Error("CNPJ inválido!");
 
         return true;
     } catch (error) {

@@ -7,10 +7,39 @@ import express from 'express';
 import fileUpload from 'express-fileupload';
 import mongoose from 'mongoose';
 import path from 'path';
+import { CaixaMovimentoModel } from './models/caixa-mov.model';
+import { CaixaModel } from './models/caixa.model';
+import { CobrancaModel } from './models/cobrancas.model';
+import { EmpresaModel } from './models/empresa.model';
+import { EntradasNotasModel } from './models/entradas-notas.model';
+import { ProdutosEstoqueMov } from './models/produtos-estoque-mov.model';
+import { ProdutosEstoqueModel } from './models/produtos-estoque.model';
+import { ProdutosPecasModel } from './models/produtos-pecas.model';
+import { VendasModel } from './models/vendas.model';
 import routes from './routes';
 import { logDev } from './util';
+import { UsuariosModel } from './models/usuarios.model';
+import { AlmoxarifadoModel } from './models/almoxarifado.model';
+import { PerfilModel } from './models/perfil.model';
+import { PessoasModel } from './models/pessoas.model';
+import { FormasPagamentoModel } from './models/formas-pagamento.model';
+import { CounterModel } from './models/counter.model';
+import { ProdutosModel } from './models/produtos.model';
+import ocr from './ocr';
+import fs from 'fs'
 
 dayjs.locale('pt-br');
+
+declare global {
+    namespace Express {
+        interface Request {
+            usuario?: any;
+            logado?: boolean;
+            empresa?: any;
+        }
+    }
+}
+
 
 const server = express(),
     PORT = process.env.DEV === "1" ? process.env.DEV_PORT : process.env.PORT,
@@ -38,6 +67,47 @@ async function start() {
         server.listen(PORT, async () => {
             console.log(`Server is running on port ${PORT}`);
             // startDB();
+            // try {
+            //     let img = fs.readFileSync(__dirname + '/filedemar1.jpeg')
+            //     let _ = await ocr(img, 1);
+            //     console.log(_)
+            // } catch (error) {
+            //     console.log(error);
+            // }
+
+
+            let del = false;
+            if (del) {
+                let empresa_id = '693c1ecef4b0a33f2784d230'
+                await ProdutosEstoqueModel.deleteMany({
+                    'empresa._id': empresa_id
+                });
+                await ProdutosEstoqueMov.deleteMany({
+                    'empresa._id': empresa_id
+                });
+                await ProdutosPecasModel.deleteMany({
+                    'empresa._id': empresa_id
+                });
+                await VendasModel.deleteMany({
+                    'empresa._id': empresa_id
+                });
+                await EntradasNotasModel.deleteMany({
+                    'empresa._id': empresa_id
+                });
+                await CaixaModel.deleteMany({
+                    principal: false,
+                    'empresa._id': empresa_id
+                });
+                await CaixaMovimentoModel.deleteMany({
+                    'empresa._id': empresa_id
+                });
+                await CobrancaModel.deleteMany({
+                    'empresa._id': empresa_id
+                });
+                console.log("Clean!")
+            }
+            // await deleteEmpresaCompleta('69498b47497b9a3da5750a1e')
+
         });
     } catch (error) {
         console.log('Error connecting to MongoDB:', error);
@@ -47,10 +117,14 @@ async function start() {
 
 start();
 
-function resolveHeaders(req: express.Request, res: express.Response, next: express.NextFunction) {
+async function resolveHeaders(req: express.Request, res: express.Response, next: express.NextFunction) {
     let userAgent = req.headers["user-agent"];
     let appVersion = req.headers["app-version"];
     let appPlatform = req.headers["app-platform"];
+    let _empresa = req.headers['empresa'];
+
+    if (!!_empresa) req.empresa = await EmpresaModel.findOne({ _id: _empresa }).lean();
+
     if (userAgent?.includes("Google")) {
         return next();
     }
@@ -120,10 +194,76 @@ function detectFetchAndBody(req: express.Request, res: express.Response, next: e
         if (body && typeof body === 'object') {
             const fetchBody = JSON.stringify(body, null, 2);
             logDev(`${req.method} | ${req.path}`);
-            logDev(fetchBody);
+            // logDev(fetchBody);
             const requestSizeInMB = Buffer.byteLength(fetchBody, 'utf8') / (1024 * 1024);
             logDev('Request size in MB:', requestSizeInMB.toFixed(2));
         }
     }
     next();
+}
+
+async function deleteEmpresaCompleta(empresa_id: string) {
+    logDev("Deleting empresa and all related data:", empresa_id);
+    await AlmoxarifadoModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await CaixaModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await CaixaMovimentoModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await CobrancaModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await CounterModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await EntradasNotasModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await FormasPagamentoModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await ProdutosEstoqueModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await ProdutosEstoqueMov.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await ProdutosPecasModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await ProdutosModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await VendasModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await PerfilModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await PessoasModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+    await EntradasNotasModel.deleteMany({
+        'empresa._id': empresa_id
+    });
+
+    let usuarios = await UsuariosModel.find({
+        'empresa._id': empresa_id
+    });
+    for (let usuario of usuarios) {
+        if (usuario?.empresas?.length == 1 && usuario?.empresas[0]?._id == empresa_id) {
+            await UsuariosModel.deleteOne({ _id: usuario._id });
+            logDev("Deleted user:", usuario._id);
+        } else {
+            // @ts-ignore
+            usuario.empresas = usuario.empresas.filter((e: any) => e._id != empresa_id);
+            await usuario.save();
+            logDev("Removed empresa from user:", usuario._id);
+        }
+    }
+    await EmpresaModel.deleteOne({ _id: empresa_id });
+    logDev("Deleted empresa:", empresa_id);
 }

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 const ModelSchema = new mongoose.Schema({
+    logo: String,
     nome: String,
     razao_social: String,
     codigo_acesso: String,
@@ -18,6 +19,37 @@ const ModelSchema = new mongoose.Schema({
         estado: String,
         pais: String
     },
+
+    juros: {
+        tipo: {
+            type: String,
+            enum: ['percentual', 'valor_fixo'],
+            default: 'percentual'
+        },
+        dias: {
+            type: Number,
+            default: 0
+        },
+        valor: {
+            type: Number,
+            default: 0
+        }
+    },
+    multa: {
+        tipo: {
+            type: String,
+            enum: ['percentual', 'valor_fixo'],
+            default: 'percentual'
+        },
+        dias: {
+            type: Number,
+            default: 0
+        },
+        valor: {
+            type: Number,
+            default: 0
+        }
+    },
     ativo: {
         type: Boolean,
         default: true
@@ -30,3 +62,7 @@ const ModelSchema = new mongoose.Schema({
 });
 
 export const EmpresaModel = mongoose.model("empresas", ModelSchema);
+
+export const EMPRESA_TIPO_DOCUMENTO = {
+    
+}

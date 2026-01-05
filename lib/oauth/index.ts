@@ -13,7 +13,7 @@ const UNAUTH_SCOPE = new Error("Escopo não autorizado");
 
 async function gerarSessao(id_usuario: any) {
     try {
-        let usuario = await UsuariosModel.findOne({ _id: id_usuario }, { nome: 1, documento: 1, niveis: 1, scopes: 1 }).lean();
+        let usuario = await UsuariosModel.findOne({ _id: id_usuario }, { nome: 1, documento: 1, empresas: 1, username: 1, foto_url: 1 }).lean();
         if (!usuario) throw new Error("Usuário não encontrado");
         let payload: any = {
             _id: String(usuario._id),
@@ -46,6 +46,7 @@ async function gerarSessao(id_usuario: any) {
                 }
             }
         }
+        payload.empresas = usuario.empresas || [];
         return payload;
     } catch (error) {
         throw error;
