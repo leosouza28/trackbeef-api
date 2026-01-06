@@ -15,9 +15,9 @@ import bcrypt from "bcrypt";
 import { PESSOA_MODEL_TIPO_TELEFONE } from "../models/pessoas.model";
 
 export default {
-    
+
     admin: {
-        
+
         getDashboardAdmin: async (req: Request, res: Response, next: NextFunction) => {
             try {
                 let response = {};
@@ -295,6 +295,9 @@ function generateUniqueCode(length: number): string {
 
 async function initializeEmpresa(empresa: any, usuario_novo: any) {
     try {
+        if (usuario_novo?.username === 'admin') {
+            throw new Error("O nome de usuário 'admin' é reservado. Por favor, escolha outro nome de usuário.");
+        }
         let _admin_user = await UsuariosModel.findOne({ username: 'admin' });
         let allPermissionsScopes = getAllAvailableScopes().map(scope => scope.key);
         let perfil = new PerfilModel({

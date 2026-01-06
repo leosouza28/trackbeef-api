@@ -19,7 +19,14 @@ const ModelSchema = new mongoose.Schema({
 
     parcela: Number,
     total_parcelas: Number,
-
+    
+    cliente: {
+        _id: String,
+        nome: String,
+        razao_social: String,
+        documento: String
+    },
+    
     venda: {
         _id: String,
         data: Date,
@@ -144,7 +151,8 @@ export const CobrancaModel = mongoose.model("cobrancas", ModelSchema);
 
 export const COBRANCA_ORIGEM = {
     NOTA_ENTRADA: "NOTA_ENTRADA",
-    VENDA: "VENDA"
+    VENDA: "VENDA",
+    PENDENCIA_FINANCEIRA: "PENDENCIA_FINANCEIRA",
 }
 
 export const COBRANCA_STATUS = {

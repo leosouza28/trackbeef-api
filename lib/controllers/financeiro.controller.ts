@@ -3,13 +3,14 @@ import { NextFunction, Request, Response } from "express";
 import mongoose from "mongoose";
 import { CAIXA_TIPO_DESCRICAO_OPERACAO, CAIXA_TIPO_OPERACAO, CaixaMovimentoModel } from "../models/caixa-mov.model";
 import { CaixaModel } from "../models/caixa.model";
-import { COBRANCA_OPERACAO, COBRANCA_STATUS, CobrancaModel } from "../models/cobrancas.model";
+import { COBRANCA_OPERACAO, COBRANCA_ORIGEM, COBRANCA_STATUS, CobrancaModel } from "../models/cobrancas.model";
 import { FormasPagamentoModel } from "../models/formas-pagamento.model";
 import { PessoasModel } from "../models/pessoas.model";
 import { RECEBIMENTO_LANCAMENTO_TIPO, RecebimentosModel } from "../models/recebimentos.model";
 import { VENDA_STATUS, VENDA_STATUS_QUITACAO, VendasModel } from "../models/vendas.model";
 import { errorHandler, getCdnLink, logDev, MoneyBRL } from "../util";
 import { EmpresaModel } from "../models/empresa.model";
+import fs from 'fs';
 
 async function getValorPendenteCliente(cliente_id: string) {
 
@@ -84,6 +85,7 @@ export async function getRecebimentosByClienteId(id_cliente: string, empresa_id:
             valor_total_em_aberto = 0,
             valor_total_em_atraso = 0,
             saldo_devedor = 0,
+            saldo_devedor_sem_pendencias = 0,
             valor_recebido = 0;
 
         let vendas = await VendasModel.find(find).sort({ data: 1 }).lean();
@@ -98,14 +100,32 @@ export async function getRecebimentosByClienteId(id_cliente: string, empresa_id:
             if (pessoa?.dias_cobranca) {
                 // @ts-ignore
                 let data_vencimento = dayjs(v.data).add(pessoa?.dias_cobranca || 0, 'day');
+                let valor_em_aberto_venda = (v.valor_liquido || 0) - (v.valor_recebido || 0);
+
+                // Aplicar epsilon para imprecisões de ponto flutuante
+                const eps = 0.01;
+                if (Math.abs(valor_em_aberto_venda) < eps) {
+                    valor_em_aberto_venda = 0;
+                }
+
                 // Se a data ja passou e ainda tem valor a receber
-                if (data_vencimento.isBefore(dayjs(), 'day')) {
-                    valor_total_em_atraso += (v.valor_liquido || 0) - (v.valor_recebido || 0);
-                } else {
-                    valor_total_em_aberto += (v.valor_liquido || 0) - (v.valor_recebido || 0);
+                if (data_vencimento.isBefore(dayjs(), 'day') && valor_em_aberto_venda > 0) {
+                    valor_total_em_atraso += valor_em_aberto_venda;
+                } else if (valor_em_aberto_venda > 0) {
+                    valor_total_em_aberto += valor_em_aberto_venda;
                 }
             } else {
-                valor_total_em_aberto += (v.valor_liquido || 0) - (v.valor_recebido || 0);
+                let valor_em_aberto_venda = (v.valor_liquido || 0) - (v.valor_recebido || 0);
+
+                // Aplicar epsilon para imprecisões de ponto flutuante
+                const eps = 0.01;
+                if (Math.abs(valor_em_aberto_venda) < eps) {
+                    valor_em_aberto_venda = 0;
+                }
+
+                if (valor_em_aberto_venda > 0) {
+                    valor_total_em_aberto += valor_em_aberto_venda;
+                }
             }
 
             for (let p of v.itens) {
@@ -125,15 +145,27 @@ export async function getRecebimentosByClienteId(id_cliente: string, empresa_id:
                 indexed[data_formatada].valor_total += p.valor_total_liquido || 0;
                 indexed[data_formatada].valor_recebido += (v.valor_recebido || 0) * ((p.valor_total_liquido || 0) / (v.valor_liquido || 1));
                 let valor_em_aberto_item = (p.valor_total_liquido || 0) - ((v.valor_recebido || 0) * ((p.valor_total_liquido || 0) / (v.valor_liquido || 1)));
+
+                // Aplicar epsilon para valores muito pequenos (imprecisões de ponto flutuante)
+                const eps = 0.01;
+                if (Math.abs(valor_em_aberto_item) < eps) {
+                    valor_em_aberto_item = 0;
+                }
+
                 indexed[data_formatada].valor_em_aberto += valor_em_aberto_item;
                 let data_vencimento = pessoa?.dias_cobranca ? dayjs(v.data).add(pessoa?.dias_cobranca || 0, 'day') : null;
-                if (data_vencimento && data_vencimento.isBefore(dayjs(), 'day')) {
+                if (data_vencimento && data_vencimento.isBefore(dayjs(), 'day') && valor_em_aberto_item > 0) {
                     indexed[data_formatada].valor_em_atraso += valor_em_aberto_item;
                 }
-                if (p.produto?._id && !indexed[data_formatada].produtos[p.produto._id]) {
-                    indexed[data_formatada].produtos[p.produto._id] = {
+                let produto_hash = `${p?.produto?._id}-${p.preco_unitario?.toFixed(2)}`
+                if (p.produto?._id && !indexed[data_formatada].produtos[produto_hash]) {
+                    indexed[data_formatada].produtos[produto_hash] = {
                         produto: p.produto,
+                        produto_sigla: p.produto.sigla,
+                        produto_sku: p.produto.sku,
                         pecas: [],
+                        unidade_saida: p.unidade_saida,
+                        valor_unitario: p.preco_unitario || 0,
                         total_unitario: 0,
                         quantidade: 0,
                         valor_total: 0,
@@ -141,13 +173,13 @@ export async function getRecebimentosByClienteId(id_cliente: string, empresa_id:
                 }
 
                 if (p.peca?._id && p.produto?._id) {
-                    indexed[data_formatada].produtos[p.produto._id].pecas.push(p.peca);
-                    indexed[data_formatada].produtos[p.produto._id].total_unitario++
+                    indexed[data_formatada].produtos[produto_hash].pecas.push(p.peca);
+                    indexed[data_formatada].produtos[produto_hash].total_unitario++
                 }
                 // @ts-ignore
-                indexed[data_formatada].produtos[p.produto._id].quantidade += p.quantidade || 0;
+                indexed[data_formatada].produtos[produto_hash].quantidade += p.quantidade || 0;
                 // @ts-ignore
-                indexed[data_formatada].produtos[p.produto._id].valor_total += p.valor_total_liquido || 0;
+                indexed[data_formatada].produtos[produto_hash].valor_total += p.valor_total_liquido || 0;
             }
         }
         saldo_devedor = valor_total - valor_recebido;
@@ -157,7 +189,6 @@ export async function getRecebimentosByClienteId(id_cliente: string, empresa_id:
         }
         if (apenas_abertas) find_recebimentos['lancamentos.venda._id'] = { $in: ids_vendas };
         let lista_recebimentos = await RecebimentosModel.find(find_recebimentos, { empresa: 0 }).sort({ data_pagamento: 1 }).lean();
-
 
 
         let lista_produtos_por_data = Object.keys(indexed).map(key => {
@@ -173,16 +204,55 @@ export async function getRecebimentosByClienteId(id_cliente: string, empresa_id:
         let url = getCdnLink();
         let endpoint = `/share/cliente/${id_cliente}/faturas`;
 
+        let find_cobs_pendencias: any = {
+            'origem': COBRANCA_ORIGEM.PENDENCIA_FINANCEIRA,
+            'cliente._id': id_cliente,
+            'empresa._id': String(pessoa?.empresa?._id)
+        }
+        if (apenas_abertas) {
+            find_cobs_pendencias['status'] = {
+                $in: [
+                    COBRANCA_STATUS.PENDENTE
+                ]
+            }
+        } else {
+            find_cobs_pendencias['status'] = {
+                $in: [
+                    COBRANCA_STATUS.PAGA,
+                    COBRANCA_STATUS.PENDENTE,
+                ]
+            }
+        }
+        let lista_pendencias_avulsas = await CobrancaModel.find(find_cobs_pendencias).lean();
+        let valor_pendencias = 0;
+
+        for (let cob of lista_pendencias_avulsas) {
+            let valor_restante = (cob?.valor_total || 0) - (cob?.valor_recebido || 0);
+            if (valor_restante > 0) {
+                saldo_devedor += valor_restante;
+                valor_pendencias += valor_restante;
+            }
+        }
+
+        saldo_devedor_sem_pendencias = saldo_devedor - valor_pendencias;
+
+        let _link = `${url}${endpoint}`;
+        if (process.env.DEV === '1') {
+            _link = `http://localhost:4242/cliente/${id_cliente}/faturas`;
+        }
         return {
             pessoa,
-            link: `${url}${endpoint}`,
+            link: _link,
             empresa: await EmpresaModel.findOne({ _id: String(pessoa?.empresa?._id) }, { nome: 1, razao_social: 1, documento: 1, logo: 1, endereco: 1 }).lean(),
             lista_produtos_por_data,
             lista_recebimentos,
+            lista_pendencias_avulsas,
             valor_total,
+            valor_pendencias,
             valor_total_em_aberto,
             valor_total_em_atraso,
             saldo_devedor,
+            saldo_devedor_sem_pendencias,
             valor_recebido
         }
     } catch (error) {
@@ -195,13 +265,14 @@ export default {
         getFaturasCliente: async (req: Request, res: Response, next: NextFunction) => {
             try {
                 let { id } = req.params;
-                let { customer } = req.query;
+                let { customer, apenas_em_aberto } = req.query;
                 let pessoa = await PessoasModel.findOne({ _id: id }, { 'empresa._id': 1 }).lean();
                 if (!pessoa) {
                     throw new Error("Cliente não encontrado");
                 }
+                console.log(apenas_em_aberto);
                 // @ts-ignore
-                let data = await getRecebimentosByClienteId(id, pessoa.empresa._id, customer === '1');
+                let data = await getRecebimentosByClienteId(id, pessoa.empresa._id, apenas_em_aberto);
                 res.json(data);
             } catch (error) {
                 errorHandler(error, res);
@@ -276,7 +347,10 @@ export default {
                 let status_quitacao = VENDA_STATUS_QUITACAO.PENDENTE;
 
                 // @ts-ignore
-                if (novo_valor_recebido >= venda.valor_liquido) {
+                // Usar epsilon para comparação de valores monetários (tolerância de 1 centavo)
+                const eps = 0.01;
+                // @ts-ignore
+                if (novo_valor_recebido >= (venda?.valor_liquido - eps)) {
                     status_quitacao = VENDA_STATUS_QUITACAO.QUITADA;
                 } else if (novo_valor_recebido > 0) {
                     status_quitacao = VENDA_STATUS_QUITACAO.PARCIAL;
@@ -304,6 +378,10 @@ export default {
                     nome: formaPagamento.nome
                 },
                 valor: valor,
+                criado_por: {
+                    usuario: req.usuario,
+                    data_hora: dayjs().toDate()
+                },
                 lancamentos: lancamentos,
                 empresa: req.empresa
             });
@@ -432,7 +510,8 @@ export default {
     getPainelRecebimentosByCliente: async (req: Request, res: Response, next: NextFunction) => {
         try {
             let { id_cliente } = req.params;
-            let data = await getRecebimentosByClienteId(id_cliente, req.empresa._id);
+            let { apenas_abertos } = req.query;
+            let data = await getRecebimentosByClienteId(id_cliente, req.empresa._id, apenas_abertos == '1' ? true : false);
             res.json(data);
         } catch (error) {
             errorHandler(error, res);
@@ -440,16 +519,21 @@ export default {
     },
     getPainelRecebimentos: async (req: Request, res: Response, next: NextFunction) => {
         try {
-            let { data_inicial, data_final } = req.query;
             let total_clientes = 0,
                 valor_total = 0,
                 valor_total_em_aberto = 0,
                 valor_total_em_atraso = 0;
 
-            let pessoas = await PessoasModel.find({ dias_cobranca: { $exists: true } }).lean();
+            let pessoas = await PessoasModel.find({ 'empresa._id': String(req.empresa._id) }).sort({ nome: 1 }).lean();
             let $match = {
                 'status': VENDA_STATUS.CONCLUIDA,
                 'venda_na_conta': true,
+                'status_quitacao': {
+                    $in: [
+                        VENDA_STATUS_QUITACAO.PARCIAL,
+                        VENDA_STATUS_QUITACAO.PENDENTE,
+                    ]
+                },
                 'empresa._id': String(req.empresa._id)
             }
             let resumo = await VendasModel.aggregate([
@@ -478,9 +562,25 @@ export default {
                         $expr: { $gt: [{ $subtract: ["$valor_receber", "$valor_recebido"] }, 0] }
                     }
                 },
+                {
+                    $sort: {
+                        nome: 1
+                    }
+                }
             ]);
-            total_clientes = resumo.length;
-            let lista = [];
+            total_clientes = pessoas.length;
+            let lista = pessoas.map((item) => ({
+                _id: item._id,
+                nome: item.nome,
+                documento: item.documento,
+                valor_receber: 0,
+                valor_recebido: 0,
+                pendencias: 0,
+                valor_total_pendencias: 0,
+                vendas: [],
+                dias_em_atraso: 0,
+                saldo_a_receber: 0,
+            }))
             for (let item of resumo) {
                 valor_total += item?.valor_receber || 0;
                 let pessoa = pessoas.find(p => p._id.toString() === item._id.toString());
@@ -512,11 +612,35 @@ export default {
                     }
                     item.dias_em_atraso = dias_em_atraso
                 }
-                lista.push({
-                    ...item,
-                    saldo_a_receber: (item.valor_receber || 0) - (item.valor_recebido || 0),
-                })
+                let index = lista.findIndex(i => i._id.toString() === item._id.toString());
+                if (index >= 0) {
+                    lista[index].valor_receber = item.valor_receber;
+                    lista[index].valor_recebido = item.valor_recebido;
+                    lista[index].vendas = item.vendas;
+                    lista[index].dias_em_atraso = item.dias_em_atraso;
+                    lista[index].saldo_a_receber = (item.valor_receber || 0) - (item.valor_recebido || 0);
+                }
             }
+            // Pendencias financeiras
+            let valor_total_pendencias = 0;
+            let cobrancas = await CobrancaModel.find({ 'origem': COBRANCA_ORIGEM.PENDENCIA_FINANCEIRA, 'empresa._id': String(req.empresa._id) }).lean();
+            for (let cob of cobrancas) {
+                let valor_restante = (cob?.valor_total || 0) - (cob?.valor_recebido || 0);
+                if (valor_restante > 0) {
+                    valor_total += valor_restante;
+                    valor_total_em_aberto += valor_restante;
+                    valor_total_pendencias += valor_restante;
+                    // @ts-ignore
+                    let index = lista.findIndex(i => i._id.toString() === cob.cliente._id.toString());
+                    if (index >= 0) {
+                        lista[index].pendencias += 1;
+                        lista[index].valor_receber += valor_restante;
+                        lista[index].valor_total_pendencias += valor_restante;
+                        lista[index].saldo_a_receber += valor_restante;
+                    }
+                }
+            }
+
             res.json({
                 lista,
                 total_clientes,
@@ -744,6 +868,43 @@ export default {
 
 
             res.json({ lista, total })
+        } catch (error) {
+            errorHandler(error, res);
+        }
+    },
+    criarContaReceber: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            let { data_emissao, data_vencimento, identificador, valor_total } = req.body;
+
+            let cliente_id = req.body.cliente_id;
+            let cliente = await PessoasModel.findOne({ _id: cliente_id, 'empresa._id': String(req.empresa._id) });
+            if (!cliente) {
+                throw new Error("Cliente não encontrado");
+            }
+            let conta = new CobrancaModel({
+                data_emissao: dayjs(data_emissao).toDate(),
+                data_vencimento: dayjs(data_vencimento).toDate(),
+                identificador,
+                origem: COBRANCA_ORIGEM.PENDENCIA_FINANCEIRA,
+                status: COBRANCA_STATUS.PENDENTE,
+                operacao: COBRANCA_OPERACAO.CREDITO,
+                valor_bruto: 0,
+                valor_juros: 0,
+                valor_desconto: 0,
+                valor_total,
+                valor_pago: 0,
+                valor_recebido: 0,
+                parcela: 1,
+                total_parcelas: 1,
+                cliente,
+                criado_por: {
+                    usuario: req.usuario,
+                    data_hora: dayjs().toDate()
+                },
+                empresa: req.empresa,
+            });
+            await conta.save();
+            res.json(conta);
         } catch (error) {
             errorHandler(error, res);
         }
@@ -1165,10 +1326,9 @@ export default {
     },
     pagarContaReceber: async (req: Request, res: Response, next: NextFunction) => {
         try {
-            console.log("Pagar conta receber", req.body, req.params);
-
             let { id } = req.params;
             let { valor_recebido, caixa_id, forma_pagamento_id, data_recebimento } = req.body;
+            if (!!req.body?.valor) valor_recebido = req.body.valor;
             // Data de recebimento só não pode ser maior que hoje
             let today = dayjs().add(-3, 'h').startOf('day');
             if (data_recebimento && dayjs(data_recebimento).isAfter(today)) {
@@ -1193,7 +1353,13 @@ export default {
             if (!fp) {
                 throw new Error("Forma de pagamento não encontrada");
             }
-            let caixa = await CaixaModel.findOne({ 'empresa._id': req.empresa._id, _id: caixa_id });
+
+            let caixa = null
+            if (caixa_id) {
+                caixa = await CaixaModel.findOne({ 'empresa._id': req.empresa._id, _id: caixa_id });
+            } else {
+                caixa = await CaixaModel.findOne({ 'empresa._id': req.empresa._id, principal: true });
+            }
 
             let recebido_integralmente = false;
             if (valor_recebido + (_cobranca?.valor_recebido || 0) >= (_cobranca?.valor_total || 0)) {
@@ -1239,7 +1405,6 @@ export default {
                 await inserirLancamentoFinanceiro({
                     tipo_lancamento: "RECEBIMENTO",
                     data_recebimento: data_recebimento ? dayjs(data_recebimento).toDate() : dayjs().add(-3, 'h').startOf('day').toDate(),
-                    venda: _cobranca.venda,
                     empresa: req.empresa,
                     usuario: req.usuario,
                     valor: valor_recebido,

@@ -14,6 +14,18 @@ import { PRODUTO_TIPO_SAIDA, ProdutosModel } from "../models/produtos.model";
 import { errorHandler, logDev } from "../util";
 
 export default {
+    getEmpresaData: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            let { id } = req.params;
+            let empresa = await EmpresaModel.findOne({ _id: id });
+            if (!empresa) {
+                throw new Error("Empresa não encontrada");
+            }
+            res.json(empresa)
+        } catch (error) {
+            errorHandler(error, res);
+        }
+    },
     getEmpresaByCodigoAtivacao: async (req: Request, res: Response, next: NextFunction) => {
         try {
             let empresa = await EmpresaModel.findOne({ codigo_acesso: req.params.id });

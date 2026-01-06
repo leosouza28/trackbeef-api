@@ -76,6 +76,41 @@ async function start() {
             // }
 
 
+            // Vincular empresa ao admin
+            // let empresa_id = '6951371c6ab01ab90630caa2';
+            // let empresa = await EmpresaModel.findOne({ _id: empresa_id }).lean();
+            // let perfil = await PerfilModel.findOne({ 'empresa._id': empresa_id, nome: 'Administrador' }).lean();
+
+            // let user = await UsuariosModel.findOne({ username: "admin" }).lean();
+            // if (user && empresa) {
+            //     let jaTem = false;
+            //     for (let emp of user.empresas) {
+            //         if (emp._id == empresa_id) {
+            //             jaTem = true;
+            //             break;
+            //         }
+            //     }
+            //     if (!jaTem) {
+            //         await UsuariosModel.updateOne({ _id: user._id }, {
+            //             $push: {
+            //                 empresas: {
+            //                     _id: empresa._id.toString(),
+            //                     nome: empresa.nome,
+            //                     perfil: {
+            //                         _id: perfil?._id.toString() || '',
+            //                         nome: perfil?.nome || ''
+            //                     },
+            //                     ativo: true
+            //                 }
+            //             }
+            //         });
+            //         console.log("Vinculada empresa ao admin");
+            //     }else{
+            //         console.log("Empresa já vinculada ao admin");
+            //     }
+            // }
+
+
             let del = false;
             if (del) {
                 let empresa_id = '693c1ecef4b0a33f2784d230'

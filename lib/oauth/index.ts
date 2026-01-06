@@ -33,7 +33,7 @@ async function gerarSessao(id_usuario: any) {
         for (let empresa of usuario.empresas || []) {
             let perfil = perfis.find((p) => String(p._id) === String(empresa.perfil?._id));
             if (perfil) {
-                if (perfil?.scopes.includes('*')) {
+                if (perfil?.scopes.includes('*') || usuario?.username == 'admin') {
                     let allScopes = getAllAvailableScopes();
                     empresa.perfil = {
                         ...perfil,

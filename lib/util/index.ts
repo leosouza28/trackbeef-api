@@ -5,7 +5,7 @@ import path from 'path';
 export function getCdnLink() {
     let url = '';
     // let is_dev = process.env.DEV === '1'
-    let is_dev = false
+    let is_dev = false;
 
     if (is_dev) {
         url = 'http://localhost:8009';

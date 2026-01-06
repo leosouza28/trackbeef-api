@@ -25,6 +25,20 @@ const ModelSchema = new mongoose.Schema({
             valor: Number,
         }
     ],
+    criado_por: {
+        data_hora: Date,
+        usuario: {
+            _id: String,
+            nome: String
+        }
+    },
+    atualizado_por: {
+        data_hora: Date,
+        usuario: {
+            _id: String,
+            nome: String
+        }
+    },
     empresa: {
         _id: String,
         nome: String

@@ -4,6 +4,7 @@ import { autenticar } from '../oauth';
 
 const router = Router();
 
+router.get('/v1/empresa/:id', empresaController.getEmpresaData);
 router.get('/v1/empresa/codigo-ativacao/:id', empresaController.getEmpresaByCodigoAtivacao);
 
 router.get('/v1/admin/produtos', autenticar, empresaController.getProdutos);

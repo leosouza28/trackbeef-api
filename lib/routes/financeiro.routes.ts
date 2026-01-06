@@ -10,6 +10,7 @@ router.get('/v1/admin/caixas/:id/lancamentos', autenticar, financeiroController.
 router.post('/v1/admin/caixas', autenticar, financeiroController.postCaixa);
 
 router.get('/v1/admin/contas-receber', autenticar, financeiroController.getContasReceber);
+router.post('/v1/admin/contas-receber', autenticar, financeiroController.criarContaReceber);
 router.put('/v1/admin/contas-receber/:id/alterar', autenticar, financeiroController.alterarContaReceber);
 router.put('/v1/admin/contas-receber/:id/lancamento', autenticar, financeiroController.pagarContaReceber);
 router.put('/v1/admin/contas-receber/:id/estornar-lancamento/:id_lancamento', autenticar, financeiroController.estornarLancamentoContaReceber);
